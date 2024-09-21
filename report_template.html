@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Weekly PV Fault Detection Report</title>
+    <style>
+        table {
+            width: 100%;  /* 表格宽度占满容器 */
+            border-collapse: collapse;  /* 合并边框 */
+            font-size: 14px;  /* 设置字体大小 */
+        }
+
+        th, td {
+            border: 2px double #007BFF;  /* 双框线 */
+            padding: 8px;  /* 内边距 */
+            text-align: center;  /* 内容居中 */
+        }
+
+        th {
+            background-color: #f2f2f2;  /* 表头背景色 */
+            color: #333;  /* 表头文字颜色 */
+        }
+
+        tr:nth-child(even) {
+            background-color: #f9f9f9;  /* 偶数行背景色 */
+        }
+        h3 {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Weekly PV Fault Detection Report</h1>
+    <h2>Report Period: {{ start_date }} to {{ end_date }}</h2>
+    <h2>Threshold: 2 Standard Deviations </h2>
+
+    <h3>Low Energy PV Panels Summary by Station</h3>
+    <table>
+        <tr>
+            <th>Station</th>
+            <th>Low Energy PV Panels Count</th>
+            <th>Total PV Panels</th>
+            <th>Percentage of Low Energy PV Panels</th>
+        </tr>
+        {% for station, summary in station_summary.items() %}
+        <tr>
+           <td>{{ station }}</td>
+           <td>{{ summary.low_energy_count }}</td>
+           <td>{{ summary.total_panels }}</td>
+           <td>{{ summary.low_energy_percentage | round(2) }}%</td>
+       </tr>
+        {% endfor %}
+    </table>
+
+    <h3>Faulty Panel Summary</h3>
+    <table>
+        <tr>
+            <th>Faulty Panel ID in 2024</th>
+            <th>Detected Date</th>
+            <th>Resolved Status</th>
+            <th>kWh loss in 2024</th>
+        </tr>
+        {% for module, details in faulty_panel_summary.items() %}
+        <tr>
+            <td>{{ module }}</td>
+            <td>{{ details.first_detected_date.strftime('%m-%d') }}</td> 
+            <td>{{ details.resolved_status }}</td>
+            <td>{{ details.kWh_loss | round(2) }}</td>
+        </tr>
+        {% endfor %}
+        <tr>
+            <td colspan="3"><strong>Total:</strong></td>
+            <td>{{ total_kWh_loss | round(2) }}</td>  <!-- 确保这里是总和 -->
+        </tr>
+    </table>
+    <p>This table shows the PV panels with faults detected since August 26, 2024. The kWh loss indicates the cumulative energy shortfall compared to the average generation of all panels at the station during the weeks identified as low generation.</p>
+
+    <h3>Low Energy PV Panels Analysis by Station</h3>
+    <ul>
+        {% for station, details in low_energy_data.items() %}
+            <li>{{ station }} (Module: {{ details.module }})
+                 <p>
+                    -Low Energy PV Panels Count: {{ station_summary[station].low_energy_count }}<br>
+                    -Total PV Panels: {{ station_summary[station].total_panels }}<br>
+                    -Percentage of Low Energy PV Panels: {{ station_summary[station].low_energy_percentage | round(2) }}%
+                </p>
+                <ul>
+                    {% for module, percentage in details.low_energy_modules %}
+                        <li>{{ module }} ({{ percentage }}% below average)</li>
+                    {% endfor %}
+                </ul>
+                <h4>Low Generation Module Daily Energy Heatmap</h4>
+                <img src="data:image/png;base64,{{ details.daily_heatmap_base64 }}" alt="Daily Energy Heatmap for {{ station }}">
+                
+                <h4>Status Table</h4>
+                <table class="status-table">
+                    <tr>
+                        <th>Panel Number</th>
+                        <th>Last Week</th>
+                        <th>This Week</th>
+                        <th>Total Lasting Weeks</th>
+                        <th>Number of weeks detected<br>fault during the past quarter</th>  <!-- 新增列 -->
+                    </tr>
+                    {% for module, statuses in details.status_table.items() %}
+                        {% if module != 'weeks' %}  <!-- 确保不遍历 weeks -->
+                            <tr>
+                                <td>{{ module[0] }}</td>
+                                <td style="color: {{ 'red' if statuses[-3] == 'F' else 'green' }};">{{ statuses[-3] }}</td>  <!-- This Week -->
+                                <td style="color: {{ 'red' if statuses[-4] == 'F' else 'green' }};">{{ statuses[-4] }}</td>  <!-- Last Week -->
+                                <td>{{ statuses[-2] }}</td>  <!-- Total Lasting Weeks -->
+                                <td>{{ statuses[-1] }}</td>  <!-- New Fault This Week -->
+                            </tr>
+                        {% endif %}
+                    {% endfor %}
+                </table>
+                <p>Legend: <span style="color: red;">F</span> - Fault, <span style="color: green;">N</span> - Normal</p>
+                <p><strong>Note:</strong> The "Number of weeks detected fault during the past quarter" column may not reflect complete data until the dataset has been updated for a full quarter. The PV fault detection work started on 2024-08-26.</p>
+                
+            </li>
+        {% endfor %}
+    </ul>
+
+    <h3>PV Module Issue Summary</h3>
+    <table>
+        <tr>
+            <th>PV Module</th>
+            <th>Number of Low Energy Panels</th>
+        </tr>
+        {% for module, count in module_count.items() %}
+        <tr>
+            <td>{{ module }}</td>
+            <td>{{ count }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+
+    <h3>Mean Percentage Below Station Average of Low Generation Modules</h3>
+    <img src="data:image/png;base64,{{ overall_heatmap_base64 }}" alt="Overall Low Energy Heatmap">
+    <p>This heatmap illustrates the percentage by which all low generation PV panels at a specific station underperformed compared to the average generation of all PV panels at that station for each day of the week.</p>
+
+     <div style="text-align: center; margin-top: 50px; border-top: 1px solid #ccc; padding-top: 20px;">
+    <h3 style="color: #333;">Contact: <a href="mailto:zlinby@connect.ust.hk" style="text-decoration: none; color: #007BFF;">zlinby@connect.ust.hk</a></h3>
+    <h3 style="color: #333;">Github Reference: <a href="https://github.com/ZinanLin-Oscar/Statistical-Analysis-for-Solaredge-PV-Fault-Detection" style="text-decoration: none; color: #007BFF;" target="_blank">https://github.com/ZinanLin-Oscar/SolarEdge-PV-Fault-Detection-Report-Generator</a></h3>
+     </div>
+
+
+</body>
+</html>
